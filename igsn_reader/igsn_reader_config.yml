@@ -1,0 +1,7 @@
+debug: True
+oai_pmh_endpoints: 
+   {ga: 'http://pid.geoscience.gov.au/samples/oai', 
+#   csiro: 'http://data.csiro.au/oaiprovider'
+   }
+sqlite_db_path: Null
+timeout: 5
