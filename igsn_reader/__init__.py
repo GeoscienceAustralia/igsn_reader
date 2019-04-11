@@ -8,6 +8,8 @@ import requests
 from lxml import etree
 from _pylief import NONE
 
+DEBUG_MAX_SAMPLES = 2500
+REPORT_INCREMENT = 1000
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,7 @@ class IGSNReader(object):
                 
     def read_igsns(self):
         insert_sql = '''insert or ignore into sample (
+    OAIPMH_ID,
     IDENTIFIER,
     DATESTAMP,
     ALT_IDENTIFIERS,
@@ -77,6 +80,7 @@ class IGSNReader(object):
     RIGHTS
     )
 values (
+    :oaipmh_id,
     :identifier,
     :datestamp,
     :alt_identifiers,
@@ -93,14 +97,15 @@ values (
 '''                        
 
         cursor = self.db_connection.cursor()
-        cursor.execute('select OAIPMH_KEY, OAIPMH_URL from OAIPMH')
+        cursor.execute('select OAIPMH_ID, OAIPMH_KEY, OAIPMH_URL from OAIPMH')
         
-        http_params = {'verb': 'ListRecords',
-                       'metadataPrefix': 'oai_dc',
-                       'resumptionToken': None}
-        
-        for oaipmh_key, oaipmh_url in cursor.fetchall():
+        for oaipmh_id, oaipmh_key, oaipmh_url in cursor.fetchall():
             logger.debug('Querying records for {}'.format(oaipmh_key))
+            
+            http_params = {'verb': 'ListRecords',
+                           'metadataPrefix': 'oai_dc',
+                           'resumptionToken': None}
+        
             sample_count = 0            
             resumption_token = None
             while not sample_count or resumption_token:
@@ -116,7 +121,7 @@ values (
                     # Hack to get around CSIRO namespace definition
                     response_content = response.content.decode('utf-8')
                     response_content = re.sub('xmlns:ns3="http://www.openarchives.org/OAI/2.0/"', '', re.sub('ns3:', '', response_content)).encode('utf-8')
-                    #print(response_content)
+                    #logger.debug(response_content)
                     
                     response_tree = etree.fromstring(response_content)
                     
@@ -132,7 +137,7 @@ values (
                         resumption_token = None
                     
                     for record_element in list_records_element.findall('./record', namespaces=response_tree.nsmap):
-                        insert_params = {}
+                        insert_params = {'oaipmh_id': oaipmh_id}
                         try:
                             insert_params['identifier'] = record_element.find('./header/identifier', namespaces=response_tree.nsmap).text
                             try:
@@ -175,13 +180,25 @@ values (
                             self.db_connection.commit()
                             sample_count += 1
                             
+                            if sample_count % REPORT_INCREMENT == 0:
+                                logger.info('{} samples updated'.format(sample_count))
+                            
+                            if self.settings['debug'] and sample_count == DEBUG_MAX_SAMPLES:
+                                break
+                            
                         except Exception as e:
                             logger.warning('Attribute read failed: {}'.format(e))
                             continue
+                    
+                    if self.settings['debug'] and sample_count == DEBUG_MAX_SAMPLES:
+                        break
                         
                 except Exception as e:
                     logger.warning('HTTP get failed: {}'.format(e))
                     break
                 
+                if self.settings['debug'] and sample_count == DEBUG_MAX_SAMPLES:
+                    break
+                        
             logger.info('{} samples updated for {}'.format(sample_count, oaipmh_key))
             

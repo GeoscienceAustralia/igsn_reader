@@ -1,8 +1,8 @@
-debug: True
+debug: False
 oai_pmh_endpoints: 
    {
+     GA: 'http://pid.geoscience.gov.au/samples/oai', 
      ARDC: 'https://handle.ands.org.au/igsn/api/service/30/oai',
-#     GA: 'http://pid.geoscience.gov.au/samples/oai', 
      CSIRO: 'https://igsn.csiro.au/csiro/service/oai',
    }
 sqlite_db_path: Null
