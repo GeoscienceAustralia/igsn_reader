@@ -1,7 +1,9 @@
 debug: True
 oai_pmh_endpoints: 
-   {ga: 'http://pid.geoscience.gov.au/samples/oai', 
-#   csiro: 'http://data.csiro.au/oaiprovider'
+   {
+     ARDC: 'https://handle.ands.org.au/igsn/api/service/30/oai',
+#     GA: 'http://pid.geoscience.gov.au/samples/oai', 
+     CSIRO: 'https://igsn.csiro.au/csiro/service/oai',
    }
 sqlite_db_path: Null
 timeout: 5

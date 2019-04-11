@@ -112,15 +112,22 @@ values (
                         
                     response = requests.get(oaipmh_url, headers=None, params=http_params, data=None, timeout=self.settings['timeout'])
                     assert response.status_code == 200, 'Response status code {} != 200: {}'.format(response.status_code, response.content)
-                    #print(response.content)
-                    response_tree = etree.fromstring(response.content)
+                    
+                    # Hack to get around CSIRO namespace definition
+                    response_content = response.content.decode('utf-8')
+                    response_content = re.sub('xmlns:ns3="http://www.openarchives.org/OAI/2.0/"', '', re.sub('ns3:', '', response_content)).encode('utf-8')
+                    #print(response_content)
+                    
+                    response_tree = etree.fromstring(response_content)
                     
                     list_records_element = response_tree.find('./ListRecords', namespaces=response_tree.nsmap)
                     assert list_records_element is not None, 'Unable to find OAI-PMH/ListRecords element'
                     
                     resumption_token_element = list_records_element.find('./resumptionToken', namespaces=response_tree.nsmap)
                     if resumption_token_element is not None:
-                        resumption_token = resumption_token_element.text.strip()
+                        resumption_token = resumption_token_element.text
+                        if resumption_token is not None:
+                            resumption_token = resumption_token.strip()
                     else:
                         resumption_token = None
                     
