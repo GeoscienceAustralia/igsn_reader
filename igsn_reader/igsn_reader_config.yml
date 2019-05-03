@@ -1,4 +1,5 @@
 debug: False
+database_engine: 'SQLite'
 oai_pmh_endpoints: 
    {
      GA: 'http://pid.geoscience.gov.au/samples/oai', 

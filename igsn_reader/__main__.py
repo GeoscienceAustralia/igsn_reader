@@ -5,7 +5,7 @@ Created on 10 Apr 2019
 '''
 
 from pprint import pprint
-from igsn_reader import IGSNReader
+from igsn_reader import get_IGSNReader
 import sys
 import logging
 
@@ -13,10 +13,10 @@ root_logger = logging.getLogger()
 
 
 def main():
-    igsn_reader = IGSNReader()
-    pprint(igsn_reader.__dict__)
+    igsn_reader_object = get_IGSNReader('Postgres')
+    pprint(igsn_reader_object.__dict__)
     
-    igsn_reader.read_igsns()
+    igsn_reader_object.read_igsns()
     
 
 if __name__ == '__main__':
