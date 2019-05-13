@@ -68,7 +68,7 @@ class IGSNReader_SQLite(IGSNReader):
                 logger.info('"{}" inserted into OAIPMH table for key {}'.format(value, key))
                 
                 
-    def read_igsns(self, oaipmh_source_list=None):
+    def read_igsns(self, oaipmh_source=None, resumption_token=None):
         '''
         Function to read IGSNS into database
         '''
@@ -110,7 +110,7 @@ values (
         
         for oaipmh_id, oaipmh_key, oaipmh_url in cursor.fetchall():
             # Skip any sources not in specified source list
-            if oaipmh_source_list and oaipmh_key not in oaipmh_source_list:
+            if oaipmh_source and oaipmh_key != oaipmh_source:
                 continue
             
             logger.debug('Querying records for {}'.format(oaipmh_key))
@@ -144,7 +144,8 @@ values (
                         logger.debug('Unable to find OAI-PMH/ListRecords element')
                         resumption_token = None
                         #print(response_content)
-                        break
+                    
+                    break
                 except Exception as e:
                     logger.warning('HTTP get failed: {}'.format(e))
                     retries += 1
