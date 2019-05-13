@@ -8,7 +8,7 @@ import psycopg2
 
 from ._igsn_reader import settings, IGSNReader
 
-DEBUG_MAX_SAMPLES = 2500 # Number of samples to store before finishing while in debug mode
+DEBUG_MAX_SAMPLES = 0 # Number of samples to store before finishing while in debug mode
 REPORT_INCREMENT = 1000 # Number of records to insert before reporting progress
 MAX_RETRIES = 2 # Maximum number of times to retry request
 RETRY_SLEEP = 2 # Seconds to sleep before retrying request
@@ -77,7 +77,7 @@ class IGSNReader_postgres(IGSNReader):
             except Exception as e:
                 logger.debug('{}'.format(e))    
                                 
-    def read_igsns(self, oaipmh_source_list=None):
+    def read_igsns(self, oaipmh_source=None, resumption_token=None):
         '''
         Function to read IGSNS into database
         '''
@@ -118,17 +118,16 @@ values (
         
         for oaipmh_id, oaipmh_key, oaipmh_url in cursor.fetchall():
             # Skip any sources not in specified source list
-            if oaipmh_source_list and oaipmh_key not in oaipmh_source_list:
+            if oaipmh_source and oaipmh_key != oaipmh_source:
                 continue
             
             logger.debug('Querying records for {}'.format(oaipmh_key))
             
             http_params = {'verb': 'ListRecords',
                            'metadataPrefix': 'oai_dc',
-                           'resumptionToken': None}
+                           'resumptionToken': resumption_token}
         
             sample_count = 0            
-            resumption_token = None
             while not sample_count or resumption_token:
                 logger.debug('resumption_token = {}'.format(resumption_token))
                 if resumption_token:
@@ -136,32 +135,35 @@ values (
                                    'resumptionToken': resumption_token}
                     
                 retries = 0
-                try:
-                    response = requests.get(oaipmh_url, headers=None, params=http_params, data=None, timeout=settings['timeout'])
-                    assert response.status_code == 200, 'Response status code {} != 200: {}'.format(response.status_code, response.content)
-                    
-                    # Hack to get around CSIRO namespace definition
-                    response_content = response.content.decode('utf-8')
-                    response_content = re.sub('xmlns:ns3="http://www.openarchives.org/OAI/2.0/"', '', re.sub('ns3:', '', response_content)).encode('utf-8')
-                    #logger.debug(response_content)
-                    
-                    response_tree = etree.fromstring(response_content)
-                    
-                    list_records_element = response_tree.find('./ListRecords', namespaces=response_tree.nsmap)
-                    if list_records_element is None:
-                        logger.debug('Unable to find OAI-PMH/ListRecords element')
-                        resumption_token = None
-                        #print(response_content)
-                        break
-                except Exception as e:
-                    logger.warning('HTTP get failed: {}'.format(e))
+                while retries < MAX_RETRIES:
                     retries += 1
-                    if retries <= MAX_RETRIES:
-                        logger.warning('Waiting {} seconds before retrying...'.format(RETRY_SLEEP))
-                        sleep(RETRY_SLEEP)
-                        continue
-                    else:
-                        raise(e)
+                    try:
+                        logger.debug('oaipmh_url = {}, headers={}, params={}, data={}, timeout={}'.format(oaipmh_url, None, http_params, None, settings['timeout']))
+                        response = requests.get(oaipmh_url, headers=None, params=http_params, data=None, timeout=settings['timeout'])
+                        assert response.status_code == 200, 'Response status code {} != 200: {}'.format(response.status_code, response.content)
+                        
+                        # Hack to get around CSIRO namespace definition
+                        response_content = response.content.decode('utf-8')
+                        response_content = re.sub('xmlns:ns3="http://www.openarchives.org/OAI/2.0/"', '', re.sub('ns3:', '', response_content)).encode('utf-8')
+                        #logger.debug(response_content)
+                        
+                        response_tree = etree.fromstring(response_content)
+                        
+                        list_records_element = response_tree.find('./ListRecords', namespaces=response_tree.nsmap)
+                        if list_records_element is None:
+                            logger.debug('Unable to find OAI-PMH/ListRecords element')
+                            resumption_token = None
+                            #print(response_content)
+                        
+                        break
+                    except Exception as e:
+                        logger.warning('HTTP get failed: {}'.format(e))
+                        if retries <= MAX_RETRIES:
+                            logger.warning('Waiting {} seconds before retrying...'.format(RETRY_SLEEP))
+                            sleep(RETRY_SLEEP)
+                            continue
+                        else:
+                            raise(e)
                                         
                 resumption_token_element = list_records_element.find('./resumptionToken', namespaces=response_tree.nsmap)
                 if resumption_token_element is not None:
@@ -228,10 +230,10 @@ values (
                     if sample_count % REPORT_INCREMENT == 0:
                         logger.info('{} samples updated'.format(sample_count))
                     
-                    if settings['debug'] and sample_count == DEBUG_MAX_SAMPLES:
+                    if settings['debug'] and DEBUG_MAX_SAMPLES > 0 and sample_count == DEBUG_MAX_SAMPLES:
                         break
                 
-                if settings['debug'] and sample_count >= DEBUG_MAX_SAMPLES:
+                if settings['debug'] and DEBUG_MAX_SAMPLES > 0 and sample_count >= DEBUG_MAX_SAMPLES:
                     logger.debug('Debug limit reached')
                     break
 
