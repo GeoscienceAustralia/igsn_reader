@@ -16,7 +16,8 @@ def main():
     igsn_reader_object = get_IGSNReader('Postgres')
     pprint(igsn_reader_object.__dict__)
     
-    igsn_reader_object.read_igsns('GA', '2011-06-01T00:00:00Z,9999-12-31T23:59:59Z,837000,oai_dc')
+    #igsn_reader_object.read_igsns('GA', '2011-06-01T00:00:00Z,9999-12-31T23:59:59Z,1990000,oai_dc')
+    igsn_reader_object.read_igsns('GA')
     
 
 if __name__ == '__main__':

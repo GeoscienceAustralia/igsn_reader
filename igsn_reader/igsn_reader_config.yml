@@ -1,10 +1,19 @@
-debug: False
+debug: True
 database_engine: 'SQLite'
+
 oai_pmh_endpoints: 
    {
-     GA: 'http://pid.geoscience.gov.au/samples/oai', 
+     GA: 'http://pid.geoscience.gov.au/sample/oai', 
      ARDC: 'https://handle.ands.org.au/igsn/api/service/30/oai',
      CSIRO: 'https://igsn.csiro.au/csiro/service/oai',
+     GFZ: 'http://doidb.wdc-terra.org/igsnaaoaip/oai'
    }
+   
+postgres_server: 'localhost'
+postgres_port: 5432
+postgres_dbname: 'IGSN_OAIPMH'
+postgres_user: 'db_user'
+postgres_password: 'db_password'
+
 sqlite_db_path: Null
-timeout: 5
+timeout: 120

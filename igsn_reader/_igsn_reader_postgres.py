@@ -11,7 +11,7 @@ from ._igsn_reader import settings, IGSNReader
 DEBUG_MAX_SAMPLES = 0 # Number of samples to store before finishing while in debug mode
 REPORT_INCREMENT = 1000 # Number of records to insert before reporting progress
 MAX_RETRIES = 2 # Maximum number of times to retry request
-RETRY_SLEEP = 2 # Seconds to sleep before retrying request
+RETRY_SLEEP = 10 # Seconds to sleep before retrying request
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ values (
             if oaipmh_source and oaipmh_key != oaipmh_source:
                 continue
             
-            logger.debug('Querying records for {}'.format(oaipmh_key))
+            logger.info('Querying records for {}'.format(oaipmh_key))
             
             http_params = {'verb': 'ListRecords',
                            'metadataPrefix': 'oai_dc',
@@ -135,9 +135,9 @@ values (
                                    'resumptionToken': resumption_token}
                     
                 retries = 0
-                while retries < MAX_RETRIES:
-                    retries += 1
+                while True:
                     try:
+                        response_content = None
                         logger.debug('oaipmh_url = {}, headers={}, params={}, data={}, timeout={}'.format(oaipmh_url, None, http_params, None, settings['timeout']))
                         response = requests.get(oaipmh_url, headers=None, params=http_params, data=None, timeout=settings['timeout'])
                         assert response.status_code == 200, 'Response status code {} != 200: {}'.format(response.status_code, response.content)
@@ -150,15 +150,16 @@ values (
                         response_tree = etree.fromstring(response_content)
                         
                         list_records_element = response_tree.find('./ListRecords', namespaces=response_tree.nsmap)
-                        if list_records_element is None:
-                            logger.debug('Unable to find OAI-PMH/ListRecords element')
-                            resumption_token = None
-                            #print(response_content)
+                        assert list_records_element is not None, 'Unable to find OAI-PMH/ListRecords element'
                         
-                        break
+                        break # We have our list_records_element - proceed with parsing
                     except Exception as e:
                         logger.warning('HTTP get failed: {}'.format(e))
-                        if retries <= MAX_RETRIES:
+                        if response_content is not None:
+                            logger.debug(response_content)
+
+                        if retries < MAX_RETRIES:
+                            retries += 1
                             logger.warning('Waiting {} seconds before retrying...'.format(RETRY_SLEEP))
                             sleep(RETRY_SLEEP)
                             continue
@@ -193,6 +194,11 @@ values (
                                                                                                      namespaces=dc_element.nsmap)
                                                     ])
                         
+                        insert_params['relations'] = ', '.join([alt_identifier_element.text
+                                                    for alt_identifier_element in dc_element.findall('./dc:relation', 
+                                                                                                     namespaces=dc_element.nsmap)
+                                                    ])
+                        
                         for dc_attribute in [
                             'title',
                             'subject',
@@ -223,14 +229,14 @@ values (
                         insert_cursor.execute(insert_sql, insert_params)
                         self.db_connection.commit()
                     except Exception as e:
-                        logger.debug(e)
+                        logger.debug('Record insertion failed: {}'.format(e)) # OK: Record might already exist
                         
                     sample_count += 1
                     
                     if sample_count % REPORT_INCREMENT == 0:
                         logger.info('{} samples updated'.format(sample_count))
                     
-                    if settings['debug'] and DEBUG_MAX_SAMPLES > 0 and sample_count == DEBUG_MAX_SAMPLES:
+                    if settings['debug'] and DEBUG_MAX_SAMPLES > 0 and sample_count >= DEBUG_MAX_SAMPLES:
                         break
                 
                 if settings['debug'] and DEBUG_MAX_SAMPLES > 0 and sample_count >= DEBUG_MAX_SAMPLES:
